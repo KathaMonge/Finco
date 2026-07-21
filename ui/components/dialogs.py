@@ -44,7 +44,7 @@ class TransactionDialog(ft.AlertDialog):
             keyboard_type=ft.KeyboardType.NUMBER,
             hint_text="0.00",
             width=200,
-            prefix_text="$ ",
+            prefix=ft.Text("$ "),
             border_color=AppTheme.BORDER_COLOR,
         )
 
@@ -97,7 +97,7 @@ class TransactionDialog(ft.AlertDialog):
             value="shared",
             width=200,
             border_color=AppTheme.BORDER_COLOR,
-            on_change=self._on_ownership_change,
+            on_select=self._on_ownership_change,
         )
 
         self._split_ratio = ft.TextField(
@@ -105,7 +105,7 @@ class TransactionDialog(ft.AlertDialog):
             hint_text="50",
             value="50",
             width=100,
-            suffix_text="%",
+            suffix=ft.Text("%"),
             keyboard_type=ft.KeyboardType.NUMBER,
             border_color=AppTheme.BORDER_COLOR,
         )
@@ -344,7 +344,7 @@ class AccountDialog(ft.AlertDialog):
             label="Balance inicial",
             keyboard_type=ft.KeyboardType.NUMBER,
             hint_text="0.00",
-            prefix_text="$ ",
+            prefix=ft.Text("$ "),
             width=150,
             border_color=AppTheme.BORDER_COLOR,
         )

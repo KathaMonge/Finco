@@ -29,10 +29,10 @@ def ocr_scan_view(page: ft.Page) -> ft.Control:
         border_radius=8,
     )
 
-    amount_field = ft.TextField(label="Monto", hint_content="0.00", prefix_content="$ ", border_color=AppTheme.BORDER_COLOR)
-    date_field = ft.TextField(label="Fecha", hint_content="YYYY-MM-DD", border_color=AppTheme.BORDER_COLOR)
-    merchant_field = ft.TextField(label="Comercio", hint_content="Nombre del comercio", expand=True, border_color=AppTheme.BORDER_COLOR)
-    card_field = ft.TextField(label="Tarjeta (últimos 4)", hint_content="1234", border_color=AppTheme.BORDER_COLOR)
+    amount_field = ft.TextField(label="Monto", hint_text="0.00", prefix=ft.Text("$ "), border_color=AppTheme.BORDER_COLOR)
+    date_field = ft.TextField(label="Fecha", hint_text="YYYY-MM-DD", border_color=AppTheme.BORDER_COLOR)
+    merchant_field = ft.TextField(label="Comercio", hint_text="Nombre del comercio", expand=True, border_color=AppTheme.BORDER_COLOR)
+    card_field = ft.TextField(label="Tarjeta (últimos 4)", hint_text="1234", border_color=AppTheme.BORDER_COLOR)
 
     confidence_text = ft.Text(size=12, color=AppTheme.TEXT_SECONDARY)
     emisor_text = ft.Text(size=14, weight=ft.FontWeight.W_600, color=AppTheme.PRIMARY)
