@@ -45,8 +45,9 @@ class LoadingOverlay(ft.Stack):
     def show(self, message: str | None = None):
         if message:
             self.message = message
-            if len(self.overlay_bg.content.controls) > 2:  # type: ignore
-                self.overlay_bg.content.controls[2].value = message  # type: ignore
+            column = self.overlay_bg.content.content  # type: ignore
+            if len(column.controls) > 2:  # type: ignore
+                column.controls[2].value = message  # type: ignore
         self.visible = True
         self.update()
 

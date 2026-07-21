@@ -1,13 +1,18 @@
 """Layout analysis for multi-column OCR text ordering.
 
-Vouchers often have multi-column layouts (e.g., left: description, right: amount).
-Simple top-to-bottom ordering mixes columns together. This module groups text
-by physical position and orders within columns.
+Supports two layout modes:
+- Table mode: documents with tabular structure (bank statements, receipts with rows).
+  Each row is a horizontal band; items at the same y-level belong together.
+- Column mode: documents with independent vertical columns (newsletters, reports).
+  Each column is read top-to-bottom before moving to the next.
+
+The mode is auto-detected based on whether items form clear horizontal rows
+vs. independent vertical columns.
 """
 
 
 def analyze_layout(detections: list[dict]) -> list[str]:
-    """Sort OCR detections intelligently: column-wise, then top-to-bottom.
+    """Sort OCR detections intelligently based on document layout.
 
     Args:
         detections: list of dicts with keys bbox, text, confidence
@@ -35,20 +40,15 @@ def analyze_layout(detections: list[dict]) -> list[str]:
 
     items.sort(key=lambda i: i["y_top"])
 
-    groups = _group_lines(items)
+    lines = _group_lines(items)
 
-    sorted_lines = []
-    for col_x, lines in _sort_columns(groups):
-        for line in lines:
-            line.sort(key=lambda i: i["x_left"])
-            text = " ".join(item["text"] for item in line).strip()
-            if text:
-                sorted_lines.append(text)
-
-    return sorted_lines
+    if _is_tabular(lines):
+        return _sort_tabular(lines)
+    else:
+        return _sort_columnar(lines)
 
 
-def _group_lines(items: list[dict], threshold: float = 15.0) -> list[list[list[dict]]]:
+def _group_lines(items: list[dict], threshold: float = 15.0) -> list[list[dict]]:
     """Group detections into lines based on vertical proximity."""
     if not items:
         return []
@@ -63,19 +63,64 @@ def _group_lines(items: list[dict], threshold: float = 15.0) -> list[list[list[d
     return lines
 
 
-def _sort_columns(lines: list[list[dict]]) -> list[tuple[float, list[list[dict]]]]:
-    """Detect columns and sort lines column-wise.
+def _is_tabular(lines: list[list[dict]]) -> bool:
+    """Detect whether the document is tabular (rows) or columnar.
 
-    Returns list of (column_x, lines_in_column) tuples.
+    Tabular: items in the same line span wide x-ranges with items at multiple
+    distinct x-positions, and lines overlap in x-range significantly.
+    Columnar: lines belong to clearly separated x-zones with little overlap.
     """
+    if len(lines) < 3:
+        return False
+
+    line_x_ranges = []
+    for line in lines:
+        xs = [item["x_center"] for item in line]
+        line_x_ranges.append((min(xs), max(xs)))
+
+    overlap_count = 0
+    for i in range(len(line_x_ranges)):
+        for j in range(i + 1, len(line_x_ranges)):
+            lo_a, hi_a = line_x_ranges[i]
+            lo_b, hi_b = line_x_ranges[j]
+            overlap_lo = max(lo_a, lo_b)
+            overlap_hi = min(hi_a, hi_b)
+            if overlap_hi > overlap_lo:
+                overlap_count += 1
+
+    total_pairs = len(line_x_ranges) * (len(line_x_ranges) - 1) / 2
+    overlap_ratio = overlap_count / total_pairs if total_pairs > 0 else 0
+
+    wide_lines = sum(
+        1 for lo, hi in line_x_ranges
+        if (hi - lo) > 200
+    )
+
+    return overlap_ratio > 0.4 or wide_lines > len(lines) * 0.3
+
+
+def _sort_tabular(lines: list[list[dict]]) -> list[str]:
+    """Sort for tabular documents: top-to-bottom, left-to-right within each row."""
+    sorted_lines = []
+    for line in lines:
+        line.sort(key=lambda i: i["x_left"])
+        text = " ".join(item["text"] for item in line).strip()
+        if text:
+            sorted_lines.append(text)
+    return sorted_lines
+
+
+def _sort_columnar(lines: list[list[dict]]) -> list[str]:
+    """Sort for columnar documents: group into columns, read each column top-to-bottom."""
     if not lines:
         return []
 
     all_x = [item["x_center"] for line in lines for item in line]
     if not all_x:
-        return [(0.0, lines)]
+        return _sort_tabular(lines)
 
     avg_x = sum(all_x) / len(all_x)
+
     left_lines = []
     right_lines = []
 
@@ -88,8 +133,19 @@ def _sort_columns(lines: list[list[dict]]) -> list[tuple[float, list[list[dict]]
 
     columns = []
     if left_lines:
-        columns.append((0.0, left_lines))
+        columns.append(left_lines)
     if right_lines:
-        columns.append((1.0, right_lines))
+        columns.append(right_lines)
 
-    return columns if columns else [(0.0, lines)]
+    if len(columns) <= 1:
+        return _sort_tabular(lines)
+
+    sorted_lines = []
+    for col_lines in columns:
+        for line in col_lines:
+            line.sort(key=lambda i: i["x_left"])
+            text = " ".join(item["text"] for item in line).strip()
+            if text:
+                sorted_lines.append(text)
+
+    return sorted_lines

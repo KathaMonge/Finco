@@ -23,6 +23,7 @@ def ocr_scan_view(page: ft.Page) -> ft.Control:
     )
 
     preview_image = ft.Image(
+        src=None,
         width=400,
         height=300,
         fit=ft.BoxFit.CONTAIN,
@@ -42,27 +43,7 @@ def ocr_scan_view(page: ft.Page) -> ft.Control:
     multi_tx_container = ft.Column(spacing=4)
     tx_checkboxes: list[ft.Checkbox] = []
 
-    def on_file_result(e: ft.FilePickerResultEvent):
-        if e.files and len(e.files) > 0:
-            result_data["paths"] = [f.path for f in e.files]
-            result_data["result"] = None
-            # Show preview of first image
-            first = e.files[0]
-            preview_image.src = first.path
-            preview_image.visible = True
-            count = len(e.files)
-            if count == 1:
-                pending_files_text.value = f"1 archivo seleccionado: {first.name}"
-            else:
-                pending_files_text.value = f"{count} archivos seleccionados (se procesará el primero)"
-            page.update()
-
-    # Singleton FilePicker to avoid accumulating in page.overlay
-    file_picker = getattr(page, "_ocr_file_picker", None)
-    if file_picker is None:
-        file_picker = ft.FilePicker(on_result=on_file_result)
-        page._ocr_file_picker = file_picker
-        page.overlay.append(file_picker)
+    file_picker = ft.FilePicker()
 
     def _reset_multi():
         tx_checkboxes.clear()
@@ -243,6 +224,24 @@ def ocr_scan_view(page: ft.Page) -> ft.Control:
                 ft.SnackBar(content=ft.Text(f"Error al guardar: {ex}"), bgcolor=AppTheme.ERROR)
             )
 
+    async def _pick_files(_):
+        files = await file_picker.pick_files(
+            allow_multiple=True,
+            file_type=ft.FilePickerFileType.IMAGE,
+        )
+        if files and len(files) > 0:
+            result_data["paths"] = [f.path for f in files]
+            result_data["result"] = None
+            first = files[0]
+            preview_image.src = first.path
+            preview_image.visible = True
+            count = len(files)
+            if count == 1:
+                pending_files_text.value = f"1 archivo seleccionado: {first.name}"
+            else:
+                pending_files_text.value = f"{count} archivos seleccionados (se procesará el primero)"
+            page.update()
+
     upload_area = ft.Container(
         content=ft.Column(
             [
@@ -255,10 +254,7 @@ def ocr_scan_view(page: ft.Page) -> ft.Control:
                         ft.FilledButton(
                             content="Seleccionar archivos",
                             icon=ft.Icons.FOLDER_OPEN,
-                            on_click=lambda _: file_picker.pick_files(
-                                allow_multiple=True,
-                                file_type=ft.FilePickerFileType.IMAGE,
-                            ),
+                            on_click=_pick_files,
                         ),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
@@ -268,7 +264,7 @@ def ocr_scan_view(page: ft.Page) -> ft.Control:
             spacing=8,
         ),
         bgcolor=AppTheme.CARD_COLOR,
-        border=ft.Border.all(2, AppTheme.BORDER_COLOR, ft.BorderStyle.DASHED),
+        border=ft.Border.all(2, AppTheme.BORDER_COLOR),
         border_radius=12,
         padding=40,
         alignment=ft.Alignment(0, 0),

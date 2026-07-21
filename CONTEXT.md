@@ -48,6 +48,7 @@ Python 3.12+ | Flet 0.86.1 | PaddleOCR PP-OCRv6 | SQLite + SQLAlchemy 2.0
 8. **Flet ≥0.80 eliminó parámetros directos de `ft.Theme`**: `brightness`, `primary_color`, `on_primary`, `secondary_color`, `error_color`, `surface_tint_color` ya no existen en `Theme`. Usar `color_scheme=ft.ColorScheme(primary=..., on_primary=..., ...)`.
 9. **SQLAlchemy 2.0+ requiere `text()`**: Toda SQL raw en `conn.execute()` debe envolverse con `text()`. Ej: `conn.execute(text("PRAGMA user_version"))`.
 10. **Flet ≥0.86 cambió `SegmentedButton.selected`**: Ahora es `List[str]`, no `Set[str]`. Usar `selected=["expense"]` en vez de `selected={"expense"}`.
+11. **Flet ≥0.80 `FilePicker` es un `Service`**: NO usar `page.overlay.append()`. NO usar `on_result` callback. `pick_files()` es `async` y retorna `list[FilePickerFile]` directamente. Ejemplo: `files = await ft.FilePicker().pick_files(allow_multiple=True)`.
 
 ## El Problema del OCR
 
@@ -108,6 +109,7 @@ Cuando trabajes en este proyecto:
 11. **Flet API — `ft.run()` en vez de `ft.app()`**: El entry point usa `ft.run(main)`.
 12. **SQLAlchemy 2.0 — `text()` obligatorio**: Cualquier SQL string crudo en `conn.execute()` debe ir con `text("...")`.
 13. **Flet API — `SegmentedButton.selected` es `List[str]`**: NO usar `set`.
+14. **Flet API — `FilePicker` es un `Service`**: NO usar `page.overlay.append()`. NO usar `on_result`. `pick_files()` es `async` y retorna archivos directamente.
 
 ## AI Context Block
 
@@ -131,5 +133,7 @@ BUNDLE_TARGET_MB=500
 FLET_API_CLASS_METHODS=true  # ft.Padding.* ft.Border.* ft.BorderRadius.* (not ft.padding.*)
 FLET_THEME_USES_COLORSCHEME=true  # ft.Theme(color_scheme=ft.ColorScheme(...))
 SQLALCHEMY_TEXT_REQUIRED=true  # conn.execute(text("..."))
+SEGMENTEDBUTTON_USES_LIST=true  # selected=["x"] not selected={"x"}
+FILEPICKER_IS_SERVICE=true  # NO page.overlay.append(), NO on_result, use await pick_files() directly
 SEGMENTEDBUTTON_USES_LIST=true  # selected=["x"] not selected={"x"}
 ```
