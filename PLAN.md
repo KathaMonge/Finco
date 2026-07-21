@@ -2,7 +2,7 @@
 
 ## Visión General
 
-**Finco** (Finanzas Compartidas) — Aplicación de escritorio Windows para gestión de gastos compartidos con enfoque en tracking de gastos, escaneo OCR de vouchers de tarjeta, y dashboard visual. Construida con Python Flet + PaddleOCR.
+**Finco** (Finanzas Compartidas) — Aplicación de escritorio Windows para gestión de gastos compartidos con enfoque en tracking de gastos, escaneo OCR de vouchers de tarjeta, y dashboard visual. Construida con Python Flet + ONNX Runtime (PP-OCRv6).
 
 ## Lecciones Aprendidas (Pre-Mortem)
 
@@ -63,9 +63,9 @@
 
 | Componente | Tecnología | Razón |
 |---|---|---|
-| UI Framework | Python Flet (≥ 0.26) | Material Design, dark mode nativo, desktop Windows |
-| OCR Engine | PaddleOCR PP-OCRv6 Medium | 34.5M params, CPU, 50 idiomas, precisión SOTA |
-| OCR Alternativa (si bundle excede) | ONNX Runtime + PP-OCRv3 | ~40MB vs ~200MB de PaddlePaddle |
+| UI Framework | Python Flet (≥ 0.86.1) | Material Design, dark mode nativo, desktop Windows |
+| OCR Engine | ONNX Runtime + PP-OCRv6 Medium | 34.5M params, CPU, 50 idiomas, bundle ~300-400MB |
+| OCR Fallback (si ONNX no viable) | Tesseract 5 | ~50MB + tessdata, precisión menor |
 | Image Processing | OpenCV + Pillow | Preprocessing, deskew, thresholding |
 | PDF Conversion | pdf2image | Convierte PDF bancarios a imágenes para OCR |
 | Base de Datos | SQLite + SQLAlchemy 2.0 | Zero config, ACID, embebida |
@@ -78,9 +78,8 @@
 ### Dependencias Principales
 
 ```txt
-flet>=0.26.0
-paddleocr>=2.8.0
-paddlepaddle>=2.6.0 (CPU version)
+flet>=0.86.1
+onnxruntime>=1.17.0
 opencv-python>=4.9.0
 pillow>=10.0.0
 pdf2image>=1.17.0
@@ -92,24 +91,25 @@ pytest
 pytest-asyncio
 ```
 
-### Packaging Strategy (Verificación Temprana)
+### Packaging Strategy
 
-**Sprint 0 bloqueante**: Antes de escribir UI, verificar que el bundle es viable:
+**Decisión tomada**: ONNX Runtime + PP-OCRv6 como motor OCR (PaddlePaddle excedía bundle size de 500MB).
 
-1. Probar `flet build windows` con PaddlePaddle → medir tamaño
-2. Si > 500MB o falla: migrar a ONNX Runtime + PP-OCRv3
-3. Alternativa: PyInstaller + NSIS para más control
+1. ✅ Migrar de PaddlePaddle a ONNX Runtime (done)
+2. Probar `flet build windows` con ONNX incluido → medir tamaño
+3. Si excede 500MB: evaluar PyInstaller + NSIS para más control
+4. Verificar en máquina limpia (sin Python)
 
 ## Fases de Desarrollo
 
-### Fase 0 — Verificación Técnica (NUEVA)
+### Fase 0 — Verificación Técnica (RESUELTA)
 **Objetivo**: Probar que el stack elegido funciona antes de invertir en UI.
 
-- [ ] Crear PoC de build: `flet build windows` con PaddlePaddle
-- [ ] Medir tamaño del bundle resultante
-- [ ] Si falla o excede 500MB: probar ONNX Runtime
-- [ ] Probar OCR en CPU midiendo tiempo real
-- [ ] Decidir stack final y documentar en TECH_DECISIONS.md
+- [x] Crear PoC de OCR: ONNX Runtime + PP-OCRv6 procesando imágenes
+- [x] Medir tiempo de OCR en CPU — ✅ ONNX más rápido que PaddlePaddle
+- [x] Decidir stack final: ONNX Runtime + PP-OCRv6 (documentado en CONTEXT.md)
+- [ ] Probar `flet build windows` con ONNX incluido → medir tamaño bundle
+- [ ] Verificar en máquina limpia (sin Python)
 
 ### Fase 1 — Fundación (MVP-1)
 **Objetivo**: Aplicación funcional con registro manual, categorías, dashboard básico.
@@ -134,19 +134,23 @@ pytest-asyncio
 ### Fase 2 — OCR Inteligente (MVP-2)
 **Objetivo**: Escaneo de vouchers con extracción automática de datos.
 
-- [ ] Integrar PaddleOCR en `services/ocr_service.py`
-  - [ ] Ejecutar en `asyncio.to_thread()` para no bloquear UI
-  - [ ] LoadingOverlay con progreso indeterminado
-- [ ] Implementar preprocessing OpenCV (deskew, threshold, crop)
-- [ ] Convertidor PDF → imagen (pdf2image)
-- [ ] Pipeline de detección de emisor por patrones
-- [ ] Parsers específicos por emisor (Visa, Mastercard, Amex, genérico)
-  - [ ] Layout analysis: ordenamiento por columnas, no top-to-bottom
-- [ ] Parser fallback genérico para emisores desconocidos
-- [ ] Sistema de confianza por campo extraído
-- [ ] Pantalla de escaneo OCR con selector de archivos (imagen + PDF)
-- [ ] Vista previa de datos extraídos + corrección manual
-- [ ] Guardado de transacción desde OCR
+- [x] Integrar OCR Engine (ONNX Runtime + PP-OCRv6) en `services/ocr/`
+  - [x] Ejecutar en `asyncio.to_thread()` para no bloquear UI
+  - [x] LoadingOverlay con progreso indeterminado
+- [x] Implementar preprocessing OpenCV (deskew, threshold, crop)
+- [x] Convertidor PDF → imagen (pdf2image)
+- [x] Pipeline de detección de emisor por patrones
+- [x] Parsers específicos por emisor (Visa, Mastercard, Amex, genérico)
+  - [x] Layout analysis: detección automática tabular vs columnar
+  - [x] Fuzzy date parsing: known garbles, digit→letter normalization, sliding window
+- [x] Parser fallback genérico para emisores desconocidos
+  - [x] LINE_TX_PATTERN para estados de cuenta (ref+date+desc+code+amount)
+  - [x] Footer exclusion, dedup, amount>0 guard
+- [x] Sistema de confianza por campo extraído
+- [x] Pantalla de escaneo OCR con FilePicker Service (async pick_files)
+- [x] Vista previa de datos extraídos + corrección manual
+- [x] Guardado de transacción desde OCR
+- [x] Multi-transacción: batch save de múltiples transacciones
 
 ### Fase 3 — Reportes y UX (Refinamiento)
 **Objetivo**: Dashboard avanzado, presupuestos, exportación.
@@ -162,21 +166,23 @@ pytest-asyncio
 
 ## Decisiones Técnicas Clave
 
-### OCR: PaddleOCR > Tesseract (con backup ONNX)
+### OCR: ONNX Runtime + PP-OCRv6 (decisión tomada)
 
-| Aspecto | PaddleOCR PP-OCRv6 | Tesseract 5 | ONNX + PP-OCRv3 |
+| Aspecto | ONNX Runtime + PP-OCRv6 ✅ | PaddleOCR PP-OCRv6 | Tesseract 5 |
 |---|---|---|---|
-| Precisión general | 96.3% (OmniDocBench) | ~85-90% | ~94% |
-| CPU Performance | 5.2× más rápido con OpenVINO | Aceptable | ~3× más rápido que Paddle |
-| Bundle size | Modelo ~14MB + PaddlePaddle ~180MB | ~50MB + tessdata | Modelo ~15MB + ONNX ~30MB |
-| Bundle Total Estimado | ~500-700MB | ~200-300MB | ~300-400MB |
-| Mantenimiento | Activo (2026) | Legacy | Activo |
+| Precisión general | ~94% (PP-OCRv3 model) | 96.3% (OmniDocBench) | ~85-90% |
+| CPU Performance | ~3× más rápido que Paddle | 5.2× con OpenVINO | Aceptable |
+| Bundle size | Modelo ~15MB + ONNX ~30MB | Modelo ~14MB + PaddlePaddle ~180MB | ~50MB + tessdata |
+| Bundle Total Estimado | ~300-400MB | ~500-700MB ❌ | ~200-300MB |
+| Mantenimiento | Activo (2026) | Activo (2026) | Legacy |
 
 ### SQLite con WAL mode
 
 Para app desktop personal con operaciones concurrentes (lectura UI + escritura OCR):
 
 ```python
+from sqlalchemy import create_engine, event, text
+
 engine = create_engine(
     "sqlite:///finco.db",
     connect_args={"check_same_thread": False}
@@ -191,11 +197,11 @@ engine = create_engine(
 SCHEMA_VERSION = 1
 
 def check_schema(conn):
-    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    version = conn.execute(text("PRAGMA user_version")).fetchone()[0]
     if version == 0:
         # crear tablas
         Base.metadata.create_all(bind=conn)
-        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        conn.execute(text(f"PRAGMA user_version = {SCHEMA_VERSION}"))
 ```
 
 ### Patrón Undo en lugar de Confirmación Modal
@@ -218,10 +224,9 @@ def delete_transaction(tx_id):
 import asyncio
 
 async def process_image(path):
-    loop = asyncio.get_event_loop()
     # OCR corre en thread separado, UI no se congela
-    result = await loop.run_in_executor(
-        None, ocr_engine.process, path
+    result = await asyncio.to_thread(
+        ocr_engine.process, path
     )
     return result
 ```

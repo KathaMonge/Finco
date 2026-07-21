@@ -29,9 +29,9 @@ Finco/
 │       ├── __init__.py
 │       ├── ocr_service.py           # Orquestador (async, thread-safe)
 │       ├── preprocessor.py          # OpenCV preprocessing pipeline
-│       ├── engine.py                # Wrapper sobre PaddleOCR (o ONNX)
+│       ├── onnx_engine.py           # ONNX Runtime + PP-OCRv6 (motor principal)
 │       ├── pdf_converter.py         # pdf2image wrapper
-│       ├── layout_analyzer.py       # Ordenamiento por columnas
+│       ├── layout_analyzer.py       # Detección automática tabular vs columnar
 │       │
 │       ├── parsers/                 # Parsers por emisor (plugin pattern)
 │       │   ├── __init__.py
@@ -42,7 +42,7 @@ Finco/
 │       │   ├── amex.py              # Amex parser
 │       │   └── fallback.py          # Parser genérico
 │       │
-│       └── models.py                # DataClasses: OCRResult, ExtractedField
+│       └── models.py                # DataClasses: OCRResult, ExtractedField, ExtractedTransaction
 │
 ├── ui/                              # Interfaz de usuario (Flet)
 │   ├── __init__.py
@@ -73,7 +73,7 @@ Finco/
 ├── utils/                           # Utilidades generales
 │   ├── __init__.py
 │   ├── threading.py                 # ThreadPoolExecutors globales
-│   ├── helpers.py                   # format_currency, parse_date, etc.
+│   ├── helpers.py                   # format_currency, parse_date (fuzzy), parse_amount
 │   └── constants.py                 # Constantes (colores, iconos, etc.)
 │
 ├── assets/                          # Recursos estáticos
@@ -120,7 +120,7 @@ from decimal import Decimal
 # Third-party
 import flet as ft
 from sqlalchemy import select, func
-from paddleocr import PaddleOCR
+from onnxruntime import InferenceSession
 
 # Local
 from core.models import Transaction

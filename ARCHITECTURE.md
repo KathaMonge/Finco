@@ -41,8 +41,8 @@
    ┌──────────────────────┴──────────────────────────┐
    │              External Tools (bundleados)         │
    │  ┌──────────────┐  ┌──────────┐  ┌───────────┐  │
-   │  │ PaddleOCR     │  │  OpenCV  │  │ pdf2image │  │
-   │  │ (o ONNX RT)   │  │ preproc  │  │ PDF→img   │  │
+   │  │ ONNX Runtime  │  │  OpenCV  │  │ pdf2image │  │
+   │  │ PP-OCRv6 CPU  │  │ preproc  │  │ PDF→img   │  │
    │  └──────────────┘  └──────────┘  └───────────┘  │
    └─────────────────────────────────────────────────┘
 ```
@@ -90,43 +90,50 @@ Imagen original (RGB)
 
 ### 2.3 OCR Engine
 
-```python
-from paddleocr import PaddleOCR
+Motor actual: **ONNX Runtime + PP-OCRv6** (CPU-only, ~300-400MB bundle).
 
-ocr = PaddleOCR(
-    use_angle_cls=True,   # clasificador de orientación
-    lang="en",            # inglés (suficiente para vouchers)
-    use_gpu=False,        # CPU-only
-    show_log=False,
-    det_db_thresh=0.3,    # umbral detección
-    rec_batch_num=6,      # batch recognition
-)
+```python
+from services.ocr.onnx_engine import run_ocr_onnx
+
+# Ejecuta detección + reconocimiento en una pasada
+# Retorna list[dict] con keys: bbox, text, confidence
+raw_detections = run_ocr_onnx(preprocessed_image)
 ```
 
-**Output**: Lista de `(bbox, text, confidence)` donde:
+**Output**: Lista de dicts con:
 - `bbox`: [[x1,y1],[x2,y1],[x2,y2],[x1,y2]] — coordenadas del texto
 - `text`: string reconocido
 - `confidence`: float 0-1
 
+> La engine corre en `asyncio.to_thread()` via ThreadPoolExecutor para no bloquear el event loop de Flet.
+
 ### 2.4 Post-Processing con Layout Analysis
 
-El raw output de PaddleOCR necesita ordenamiento inteligente. No es seguro confiar solo en coordenada Y (top-to-bottom) porque los vouchers tienen layouts multicolumna.
+El raw output de la OCR necesita ordenamiento inteligente. El layout analyzer detecta automáticamente si el documento es **tabular** (filas) o **columnar** (columnas independientes).
 
 ```
 Algoritmo de Layout Analysis:
 
-1. Agrupar textos por proximidad horizontal (misma línea)
-   - Si |y1_i - y1_j| < threshold → misma línea
-   - Ordenar por x1 dentro de cada línea
+1. Agrupar textos por proximidad vertical (misma línea)
+   - Si |y_top_i - y_top_j| < threshold → misma línea
+   - Ordenar por x_left dentro de cada línea
 
-2. Detectar columnas (si aplica):
-   - Calcular histograma de posiciones X de los textos
-   - Si hay 2+ clusters de X → hay múltiples columnas
-   - Procesar columna izquierda primero, luego derecha
+2. Detectar modo tabular vs columnar:
+   - Calcular overlap de x-ranges entre pares de líneas
+   - Si overlap_ratio > 0.4 o >30% de líneas son anchas (>200px) → TABULAR
+   - Si no → COLUMNAR
 
-3. Orden final: columna → línea → izquierda a derecha
+3. Modo TABULAR (estados de cuenta, recibos con filas):
+   - Ordenar líneas por y_top (arriba a abajo)
+   - Dentro de cada línea: izquierda a derecha
+   - Resultado: cada línea = una fila completa
 
-4. Heurísticas específicas de voucher:
+4. Modo COLUMNAR (reportes, newsletters):
+   - Dividir en columnas izquierda/derecha por promedio de x_center
+   - Leer columna izquierda arriba→abajo, luego derecha
+   - Resultado: texto de cada columna secuencialmente
+
+5. Heurísticas específicas de voucher:
    - Montos suelen estar alineados a la derecha
    - Fechas suelen estar cerca del borde superior
    - Nombre de comercio suele ser la línea más grande
@@ -155,11 +162,22 @@ EMISOR_PATTERNS = {
     }
 ```
 
-El parser fallback (`services/ocr/parsers/fallback.py`) incluye un patrón `LINE_TX_PATTERN`
-que detecta líneas individuales con formato `fecha + descripción + monto`, típico de
-estados de cuenta bancarios. Cada línea detectada se convierte en un
-`ExtractedTransaction` dentro de `OCRResult.transactions`, permitiendo el guardado
-batch de múltiples transacciones desde una sola imagen.
+El parser fallback (`services/ocr/parsers/fallback.py`) incluye dos patrones:
+
+1. **LINE_TX_PATTERN**: Para estados de cuenta con referencia numérica.
+   Formato: `ref_num(6+) + date + description + R_code + amount`
+   Ej: `6152485244 5-JUN-2 IOSPAMETRPTANP ZA R 38320`
+
+2. **LINE_TX_GENERIC**: Fallback para líneas con fecha + descripción + monto al final.
+   Ej: `5=IlUN-2 AINILAPAZAFLS laluel R 70011`
+
+Características adicionales:
+- **Footer exclusion**: Líneas con "total", "subtotal", "saldo", "período" se excluyen del conteo de transacciones
+- **Dedup**: Transacciones duplicadas (misma fecha + monto) se ignoran
+- **Fuzzy date parsing**: Meses OCR-garbled (I11N→JUN, JiUN→JUN) con known garbles + digit→letter normalization + sliding window heuristic
+- **Year inference**: Años truncados (2→2026) usando heurística de década cercana
+
+Cada línea detectada se convierte en un `ExtractedTransaction` dentro de `OCRResult.transactions`, permitiendo el guardado batch de múltiples transacciones desde una sola imagen.
 ```
 
 ### 2.6 Sistema de Confianza
@@ -384,7 +402,7 @@ App
 ```
 Usuario: click "OCR Scan" → UploadArea
     │
-    ├─ FilePicker: selecciona imagen o PDF
+    ├─ FilePicker Service: selecciona imagen o PDF (async pick_files)
     │
     ├─ [Si es PDF] → pdf2image → lista de imágenes
     │
@@ -395,7 +413,7 @@ Usuario: click "OCR Scan" → UploadArea
     │   ├─ Backend: ocr_service.process_image(path) [en thread]
     │   │   ├─ 1. Load image (Pillow)
     │   │   ├─ 2. Preprocess (OpenCV)
-    │   │   ├─ 3. Run PaddleOCR
+    │   │   ├─ 3. Run ONNX OCR Engine
     │   │   ├─ 4. Layout analysis (ordenar por columnas)
     │   │   ├─ 5. Detect emisor (pattern matching)
     │   │   ├─ 6. Apply parser

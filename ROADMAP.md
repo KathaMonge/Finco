@@ -2,19 +2,19 @@
 
 > Timeline tentativo. Cada fase produce un entregable funcional y testeable.
 
-## Fase 0 — Verificación Técnica (PENDIENTE)
+## Fase 0 — Verificación Técnica (RESUELTA)
 **Objetivo**: Probar que el stack es viable ANTES de invertir en build de producción.
 **Duración**: 1-2 días
 
-> ⚠️ El código base de Fase 1 y 2 ya fue escrito. Esta verificación sigue siendo necesaria
-> antes del build de producción (Fase 3.4) para evitar sorpresas con el bundle.
+> ✅ Decisión tomada: ONNX Runtime + PP-OCRv6 como motor OCR (PaddlePaddle excedía bundle size).
+> ✅ OCR funcional en CPU con ONNX Runtime. Pendiente: verificar bundle size final en build producción.
 
-- [ ] Crear script de prueba: inicializar PaddleOCR + procesar 1 imagen
-- [ ] Medir tiempo de OCR en CPU (target: < 8s)
-- [ ] Probar `flet build windows` con PaddlePaddle incluido
+- [x] Crear script de prueba: inicializar OCR + procesar 1 imagen
+- [x] Medir tiempo de OCR en CPU (target: < 8s) — ✅ ONNX más rápido que PaddlePaddle
+- [x] Decidir stack final: ONNX Runtime + PP-OCRv6 (documentado en CONTEXT.md)
+- [ ] Probar `flet build windows` con ONNX incluido
 - [ ] Medir tamaño del bundle resultante
-- [ ] SI falla o > 500MB: prototipar con ONNX Runtime + PP-OCRv3
-- [ ] Decidir stack final y documentar en TECH_DECISIONS.md
+- [ ] Verificar en máquina limpia (sin Python)
 
 ## Fase 1 — Fundación (MVP-1) ✅ COMPLETADA
 **Objetivo**: App funcional con registro manual y dashboard básico.
@@ -65,11 +65,14 @@
 **Duración**: Sprints 2.1 - 2.4
 
 > ✅ Infraestructura OCR escrita y testeada (unit tests pasan).
+> ✅ Motor: ONNX Runtime + PP-OCRv6 (no PaddlePaddle — bundle más liviano).
 > ✅ Multi-transacción: detección y guardado batch de múltiples montos en un mismo documento.
-> ❌ Falta: verificar con PaddleOCR real instalado + muestras de vouchers reales.
+> ✅ Layout analysis: detección automática tabular vs columnar.
+> ✅ Fuzzy date parsing: fechas OCR-garbled (meses truncados, años abreviados).
+> ❌ Falta: verificar con build de producción + muestras de vouchers reales.
 
 ### Sprint 2.1 — Core OCR + Threading ✅ (código listo)
-- [x] Integrar PaddleOCR (modelo PP-OCRv6 medium)
+- [x] Integrar OCR Engine (ONNX Runtime + PP-OCRv6 medium)
   - [x] CRÍTICO: OCR ejecutado en `asyncio.to_thread()`
   - [x] ThreadPoolExecutor dedicado para OCR
 - [x] Módulo de preprocesamiento OpenCV (deskew, threshold, denoise)
@@ -80,17 +83,18 @@
 
 ### Sprint 2.2 — Parsers de Emisores ✅ (código listo)
 - [x] Registry de parsers (plugin architecture)
-- [x] Layout analysis: ordenamiento inteligente por columnas
+- [x] Layout analysis: detección automática tabular vs columnar (overlap ratio + x-range analysis)
 - [x] Parser Visa (genérico)
 - [x] Parser Mastercard (genérico)
 - [x] Parser Amex
-- [x] Parser Fallback (genérico con detección universal de montos/fechas)
+- [x] Parser Fallback (ref+date+desc+code+amount, footer exclusion, dedup)
+- [x] Fuzzy date parsing: known garbles, digit→letter normalization, sliding window heuristic
 - [x] Sistema de confianza por campo
 - [x] Tests unitarios de parsers (sin OCR real)
 - [ ] Tests con vouchers reales de cada emisor (20+ muestras pendientes)
 
 ### Sprint 2.3 — UI de Escaneo ✅ (código listo)
-- [x] Pantalla OCR Scan con FilePicker (imagen + PDF)
+- [x] Pantalla OCR Scan con FilePicker Service (async pick_files, sin overlay)
 - [x] Preview de imagen/PDF seleccionado
 - [x] Botón "Escanear" con LoadingOverlay
 - [x] Formulario de datos extraídos (editables)

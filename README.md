@@ -85,7 +85,7 @@ pip install -r requirements.txt
 flet build windows       # o PyInstaller + NSIS
 ```
 
-> ⚠️ Verificar bundle size < 500MB. Alternativa: ONNX Runtime si PaddlePaddle excede.
+> Bundle actualmente usa ONNX Runtime (~300-400MB). Si se necesita reducir, evaluar PyInstaller + NSIS.
 
 ## Licencia
 
