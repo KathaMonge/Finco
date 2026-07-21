@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.spec
+
+# Virtual environment
+venv/
+.venv/
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+receipts/
+user_data/
+nul
+inference.yml
+*_section.txt
+ppocrv6_*.txt
+chardict_*.txt
+
+# User settings
+settings.json
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage/
+
+# Pytest
+.pytest_cache/
+
+# Environments
+.env
+.env.*
+
+# pyenv
+.python-version
+
+# Logs
+*.log
+
+# Downloaded models
+onnx_models/
+models/
