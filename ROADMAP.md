@@ -117,14 +117,14 @@
 ### Sprint 3.1 — Dashboard Avanzado ✅
 - [x] Gráfico de dona/pie: gastos por categoría (CategoryPieChart)
 - [ ] Gráfico de línea: evolución mensual
-- [ ] Selector de período (mes/año)
-- [ ] Top 5 comercios donde más se gasta
+- [x] Selector de período (mes/año) — Dropdown con historial mes actual + mes anterior
+- [x] Top 5 comercios donde más se gasta
 
 ### Sprint 3.2 — Presupuestos ✅
 - [x] Límite mensual por categoría
 - [x] Barra de progreso vs presupuesto
 - [x] Alerta visual al superar 80% y 100%
-- [ ] Notificaciones en dashboard
+- [x] Alertas en dashboard (sección "Alertas de Presupuesto" con categorías >80%)
 
 ### Sprint 3.3 — Exportación y Filtros ✅
 - [x] Exportar transacciones a CSV
