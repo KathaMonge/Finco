@@ -34,6 +34,14 @@ inference.yml
 ppocrv6_*.txt
 chardict_*.txt
 
+# Debug artifacts (may contain real receipt/statement data)
+debug_*.png
+debug_*.jpg
+debug_*.jpeg
+debug_*.json
+debug_ocr_result.json
+debug_preprocessed.png
+
 # User settings
 settings.json
 
