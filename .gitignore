@@ -48,6 +48,9 @@ coverage/
 
 # Environments
 .env
+
+# Serena MCP
+.serena/
 .env.*
 
 # pyenv
