@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy import select, func, and_
 
 from core.database import get_session
-from core.models import Transaction, Category
+from core.models import Participant, Transaction, TransactionSplit, Category
 
 
 class DashboardService:
@@ -142,6 +142,40 @@ class DashboardService:
                     "merchant": row.description,
                     "count": row.count,
                     "total": Decimal(str(row.total)),
+                }
+                for row in rows
+            ]
+
+    def get_participant_summary(self, year: int, month: int) -> list[dict]:
+        with get_session() as session:
+            query = (
+                select(
+                    Participant.id,
+                    Participant.name,
+                    Participant.color,
+                    func.sum(Transaction.amount * TransactionSplit.percentage / 100).label("total_owed"),
+                )
+                .join(TransactionSplit, TransactionSplit.participant_id == Participant.id)
+                .join(Transaction, Transaction.id == TransactionSplit.transaction_id)
+                .where(
+                    and_(
+                        Transaction.deleted_at.is_(None),
+                        Transaction.type == "expense",
+                        Participant.is_active.is_(True),
+                        func.strftime("%Y", Transaction.date) == str(year),
+                        func.strftime("%m", Transaction.date) == f"{month:02d}",
+                    )
+                )
+                .group_by(Participant.id, Participant.name, Participant.color)
+                .order_by(Participant.id)
+            )
+            rows = session.execute(query).all()
+            return [
+                {
+                    "participant_id": row.id,
+                    "name": row.name,
+                    "color": row.color,
+                    "total_owed": Decimal(str(row.total_owed or 0)),
                 }
                 for row in rows
             ]

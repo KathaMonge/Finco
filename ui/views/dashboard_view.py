@@ -8,6 +8,7 @@ from ui.components.empty_state import EmptyState
 from ui.components.summary_cards import SummaryCards
 from ui.components.charts import CategoryPieChart
 from ui.components.split_expense_card import SplitExpenseCard
+from ui.components.card import AppCard
 from ui.theme import AppTheme
 from utils.helpers import format_currency
 
@@ -83,23 +84,9 @@ def _build_top_merchants(year: int, month: int) -> ft.Control | None:
                 spacing=4,
             )
         )
-    return ft.Container(
-        content=ft.Column(
-            [
-                ft.Text(
-                    "Top 5 Comercios",
-                    size=16,
-                    weight=ft.FontWeight.W_600,
-                    color=AppTheme.ON_SURFACE,
-                ),
-                ft.Container(height=8),
-                *rows,
-            ],
-            spacing=4,
-        ),
-        bgcolor=AppTheme.CARD_COLOR,
-        border_radius=12,
-        padding=20,
+    return AppCard(
+        title="Top 5 Comercios",
+        content=ft.Column(rows, spacing=4),
     )
 
 
@@ -169,6 +156,7 @@ def dashboard_view(page: ft.Page) -> ft.Control:
                 expenses=summary["expenses"],
             )
 
+            participant_summary = dashboard_service.get_participant_summary(year, month)
             split_card = SplitExpenseCard(
                 total_expenses=summary["expenses"],
                 shared_expenses=summary["shared_expenses"],
@@ -177,29 +165,16 @@ def dashboard_view(page: ft.Page) -> ft.Control:
                 shared_due=summary["shared_due"],
                 split_50_total=summary["split_50_total"],
                 month_name=f"{MONTHS_ES[month]} {year}",
+                participants=participant_summary if len(participant_summary) >= 2 else None,
             )
 
             budget_alerts = _build_budget_alerts(year, month)
             budget_section = None
             if budget_alerts:
-                budget_section = ft.Container(
-                    content=ft.Column(
-                        [
-                            ft.Row(
-                                [
-                                    ft.Icon(name=ft.Icons.NOTIFICATIONS_ACTIVE, color=AppTheme.WARNING, size=20),
-                                    ft.Text("Alertas de Presupuesto", size=16, weight=ft.FontWeight.W_600, color=AppTheme.ON_SURFACE),
-                                ],
-                                spacing=8,
-                            ),
-                            ft.Container(height=4),
-                            *budget_alerts,
-                        ],
-                        spacing=4,
-                    ),
-                    bgcolor=AppTheme.CARD_COLOR,
-                    border_radius=12,
-                    padding=20,
+                budget_section = AppCard(
+                    title="Alertas de Presupuesto",
+                    title_icon=ft.Icons.NOTIFICATIONS_ACTIVE,
+                    content=ft.Column(budget_alerts, spacing=4),
                 )
 
             top_merchants = _build_top_merchants(year, month)

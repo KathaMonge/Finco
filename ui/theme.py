@@ -8,7 +8,7 @@ class AppTheme:
     SECONDARY = "#45B7D1"
     ACCENT = "#FFD93D"
     ERROR = "#FF6B6B"
-    SUCCESS = "#4ECDC4"
+    SUCCESS = "#5FD068"
     WARNING = "#FFD93D"
     SURFACE = "#1E1E2E"
     BACKGROUND = "#16162A"
@@ -31,7 +31,7 @@ class HighContrastTheme:
     SECONDARY = "#66D9FF"
     ACCENT = "#FFFF00"
     ERROR = "#FF4444"
-    SUCCESS = "#00FFCC"
+    SUCCESS = "#00FF66"
     WARNING = "#FFDD00"
     SURFACE = "#000000"
     BACKGROUND = "#000000"
@@ -47,6 +47,44 @@ class HighContrastTheme:
         "#FF4444", "#00FFCC", "#66D9FF", "#00CC88",
         "#FFDD00", "#FF88FF", "#8888FF", "#FF66CC",
     ]
+
+
+class Spacing:
+    XS = 4
+    SM = 8
+    MD = 16
+    LG = 24
+    XL = 32
+
+
+class Radius:
+    SM = 8
+    MD = 12
+    LG = 16
+
+
+class Elevation:
+    @staticmethod
+    def card() -> list[ft.BoxShadow]:
+        return [
+            ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=12,
+                color="#20000000",
+                offset=ft.Offset(0, 4),
+            )
+        ]
+
+    @staticmethod
+    def raised() -> list[ft.BoxShadow]:
+        return [
+            ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=20,
+                color="#30000000",
+                offset=ft.Offset(0, 8),
+            )
+        ]
 
 
 def build_theme(high_contrast: bool = False) -> ft.Theme:
