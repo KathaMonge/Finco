@@ -6,20 +6,28 @@ from ui.theme import AppTheme
 from core.config import DEFAULT_CATEGORIES
 from services.category_service import category_service
 from services.account_service import account_service
-from core.schemas import AccountCreate, CategoryCreate
+from services.participant_service import participant_service
+from core.schemas import AccountCreate, CategoryCreate, ParticipantCreate
+
+PARTICIPANT_COLORS = ["#4ECDC4", "#FF6B6B", "#45B7D1", "#FFD93D", "#96CEB4", "#DDA0DD"]
 
 
 class OnboardingWizard(ft.Container):
-    """5-step onboarding wizard for first-time users."""
+    """6-step onboarding wizard for first-time users."""
 
     def __init__(self, page: ft.Page, on_complete):
         self._page = page
         self._on_complete = on_complete
         self._step = 0
+        self._participant_count = 2
+        self._participant_fields: list[ft.TextField] = []
+        self._participant_count_text = ft.Text("2", size=20, weight=ft.FontWeight.BOLD, color=AppTheme.ON_BACKGROUND)
+        self._participant_fields_col = ft.Column(spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
         self._steps = [
             self._step_welcome(),
             self._step_create_account(),
+            self._step_participants(),
             self._step_create_categories(),
             self._step_first_transaction(),
             self._step_done(),
@@ -42,7 +50,7 @@ class OnboardingWizard(ft.Container):
                     bgcolor=AppTheme.SURFACE_VARIANT,
                     border_radius=2,
                 )
-                for i in range(5)
+                for i in range(6)
             ],
             spacing=4,
         )
@@ -133,6 +141,60 @@ class OnboardingWizard(ft.Container):
                 ft.TextButton(
                     content="Omitir paso",
                     on_click=lambda _: self._next_step(),
+                ),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER,
+        )
+
+    def _step_participants(self) -> ft.Column:
+        self._render_participant_fields()
+        return ft.Column(
+            [
+                ft.Icon(ft.Icons.PEOPLE, size=64, color=AppTheme.ACCENT),
+                ft.Container(height=24),
+                ft.Text(
+                    "¿Con cuántas personas compartís gastos?",
+                    size=24,
+                    weight=ft.FontWeight.BOLD,
+                    color=AppTheme.ON_BACKGROUND,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                ft.Container(height=16),
+                ft.Text(
+                    "Podés dividir gastos por categoría (ej. renta entre roommates) "
+                    "y ajustar cada transacción despues.",
+                    size=14,
+                    color=AppTheme.TEXT_SECONDARY,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                ft.Container(height=24),
+                ft.Row(
+                    [
+                        ft.IconButton(
+                            icon=ft.Icons.REMOVE_CIRCLE_OUTLINE,
+                            on_click=lambda _: self._change_participant_count(-1),
+                        ),
+                        self._participant_count_text,
+                        ft.IconButton(
+                            icon=ft.Icons.ADD_CIRCLE_OUTLINE,
+                            on_click=lambda _: self._change_participant_count(1),
+                        ),
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                ft.Container(height=16),
+                self._participant_fields_col,
+                ft.Container(height=24),
+                ft.FilledButton(
+                    content="Crear personas",
+                    on_click=lambda _: self._create_participants_and_next(),
+                    icon=ft.Icons.CHECK,
+                ),
+                ft.Container(height=8),
+                ft.TextButton(
+                    content="Omitir paso",
+                    on_click=lambda _: self._skip_participants(),
                 ),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -261,6 +323,40 @@ class OnboardingWizard(ft.Container):
                 balance=0,
             )
         )
+        self._next_step()
+
+    def _render_participant_fields(self):
+        self._participant_count_text.value = str(self._participant_count)
+        self._participant_fields = [
+            ft.TextField(
+                label=f"Persona {i + 1}",
+                value="Yo" if i == 0 else "",
+                width=280,
+            )
+            for i in range(self._participant_count)
+        ]
+        self._participant_fields_col.controls = self._participant_fields
+
+    def _change_participant_count(self, delta: int):
+        new_count = self._participant_count + delta
+        if new_count < 1 or new_count > 6:
+            return
+        self._participant_count = new_count
+        self._render_participant_fields()
+        if self._participant_fields_col.page:
+            self._participant_count_text.update()
+            self._participant_fields_col.update()
+
+    def _create_participants_and_next(self):
+        for i, field in enumerate(self._participant_fields):
+            name = (field.value or "").strip() or f"Persona {i + 1}"
+            participant_service.create(
+                ParticipantCreate(name=name, color=PARTICIPANT_COLORS[i % len(PARTICIPANT_COLORS)])
+            )
+        self._next_step()
+
+    def _skip_participants(self):
+        participant_service.create(ParticipantCreate(name="Yo", color=PARTICIPANT_COLORS[0]))
         self._next_step()
 
     def _create_categories_and_next(self):
