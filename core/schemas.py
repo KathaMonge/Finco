@@ -63,3 +63,19 @@ class TransactionUpdate(BaseModel):
     type: Optional[str] = Field(None, pattern=r"^(income|expense)$")
     ownership_type: Optional[str] = Field(None, pattern=r"^(shared|personal|external)$")
     split_ratio: Optional[Decimal] = Field(None, ge=0, le=1)
+
+
+class ParticipantCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    color: str = Field(default="#4ECDC4", pattern=r"^#[0-9A-Fa-f]{6}$")
+
+
+class ParticipantUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    is_active: Optional[bool] = None
+
+
+class SplitEntry(BaseModel):
+    participant_id: int = Field(..., ge=1)
+    percentage: Decimal = Field(..., ge=0, le=100)

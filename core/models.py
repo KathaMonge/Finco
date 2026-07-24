@@ -63,6 +63,55 @@ class Transaction(Base):
 
     account: Mapped["Account"] = relationship(back_populates="transactions")
     category: Mapped["Category"] = relationship(back_populates="transactions")
+    splits: Mapped[list["TransactionSplit"]] = relationship(
+        back_populates="transaction", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Transaction {self.type} ${self.amount} on {self.date}>"
+
+
+class Participant(Base):
+    __tablename__ = "participants"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    color: Mapped[str] = mapped_column(String(7), default="#4ECDC4")
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(default=func.now())
+
+    category_splits: Mapped[list["CategorySplit"]] = relationship(back_populates="participant")
+    transaction_splits: Mapped[list["TransactionSplit"]] = relationship(back_populates="participant")
+
+    def __repr__(self) -> str:
+        return f"<Participant {self.name}>"
+
+
+class CategorySplit(Base):
+    __tablename__ = "category_splits"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
+    participant_id: Mapped[int] = mapped_column(ForeignKey("participants.id"))
+    percentage: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+
+    category: Mapped["Category"] = relationship()
+    participant: Mapped["Participant"] = relationship(back_populates="category_splits")
+
+    def __repr__(self) -> str:
+        return f"<CategorySplit category={self.category_id} participant={self.participant_id} {self.percentage}%>"
+
+
+class TransactionSplit(Base):
+    __tablename__ = "transaction_splits"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    transaction_id: Mapped[int] = mapped_column(ForeignKey("transactions.id"))
+    participant_id: Mapped[int] = mapped_column(ForeignKey("participants.id"))
+    percentage: Mapped[Decimal] = mapped_column(Numeric(5, 2))
+
+    transaction: Mapped["Transaction"] = relationship(back_populates="splits")
+    participant: Mapped["Participant"] = relationship(back_populates="transaction_splits")
+
+    def __repr__(self) -> str:
+        return f"<TransactionSplit tx={self.transaction_id} participant={self.participant_id} {self.percentage}%>"
