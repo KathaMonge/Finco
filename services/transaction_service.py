@@ -5,8 +5,8 @@ from typing import Optional
 from sqlalchemy import select, func, and_
 
 from core.database import get_session
-from core.models import Transaction
-from core.schemas import TransactionCreate, TransactionUpdate
+from core.models import CategorySplit, Transaction, TransactionSplit
+from core.schemas import SplitEntry, TransactionCreate, TransactionUpdate
 
 
 class TransactionService:
@@ -14,6 +14,20 @@ class TransactionService:
         with get_session() as session:
             tx = Transaction(**data.model_dump())
             session.add(tx)
+            session.flush()
+
+            default_splits = session.execute(
+                select(CategorySplit).where(CategorySplit.category_id == tx.category_id)
+            ).scalars().all()
+            for split in default_splits:
+                session.add(
+                    TransactionSplit(
+                        transaction_id=tx.id,
+                        participant_id=split.participant_id,
+                        percentage=split.percentage,
+                    )
+                )
+
             session.commit()
             session.refresh(tx)
             return tx
@@ -147,6 +161,32 @@ class TransactionService:
                 "expenses": Decimal(str(expenses or 0)),
                 "balance": Decimal(str((incomes or 0) - (expenses or 0))),
             }
+
+    def get_splits(self, transaction_id: int) -> list[TransactionSplit]:
+        with get_session() as session:
+            query = select(TransactionSplit).where(TransactionSplit.transaction_id == transaction_id)
+            return list(session.execute(query).scalars().all())
+
+    def set_splits(self, transaction_id: int, splits: list[SplitEntry]) -> None:
+        total = sum(s.percentage for s in splits)
+        if splits and abs(total - 100) > Decimal("0.5"):
+            raise ValueError(f"Los porcentajes deben sumar 100 (suman {total})")
+
+        with get_session() as session:
+            session.execute(
+                TransactionSplit.__table__.delete().where(
+                    TransactionSplit.transaction_id == transaction_id
+                )
+            )
+            for entry in splits:
+                session.add(
+                    TransactionSplit(
+                        transaction_id=transaction_id,
+                        participant_id=entry.participant_id,
+                        percentage=entry.percentage,
+                    )
+                )
+            session.commit()
 
 
 transaction_service = TransactionService()

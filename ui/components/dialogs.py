@@ -3,10 +3,11 @@ from decimal import Decimal
 
 import flet as ft
 
-from core.schemas import TransactionCreate, CategoryCreate, AccountCreate
+from core.schemas import TransactionCreate, CategoryCreate, AccountCreate, SplitEntry
 from services.transaction_service import transaction_service
 from services.category_service import category_service
 from services.account_service import account_service
+from services.participant_service import participant_service
 from ui.components.snack_undo import show_snackbar
 from ui.theme import AppTheme
 from utils.constants import OWNERSHIP_TYPES, OWNERSHIP_LABELS, OWNERSHIP_COLORS
@@ -116,6 +117,36 @@ class TransactionDialog(ft.AlertDialog):
             color=OWNERSHIP_COLORS["shared"],
         )
 
+        self._participants = participant_service.list_active()
+        self._split_fields: dict[int, ft.TextField] = {}
+        self._split_section = ft.Column(visible=False, spacing=8)
+        if len(self._participants) >= 2:
+            existing_splits: dict[int, Decimal] = {}
+            if is_edit:
+                existing_splits = {
+                    s.participant_id: s.percentage
+                    for s in transaction_service.get_splits(transaction.id)
+                }
+            elif categories:
+                existing_splits = {
+                    s.participant_id: s.percentage
+                    for s in category_service.get_default_split(categories[0].id)
+                }
+            for participant in self._participants:
+                field = ft.TextField(
+                    label=participant.name,
+                    value=str(existing_splits.get(participant.id, "")),
+                    suffix_text="%",
+                    width=110,
+                    border_color=AppTheme.BORDER_COLOR,
+                )
+                self._split_fields[participant.id] = field
+            self._split_section.visible = True
+            self._split_section.controls = [
+                ft.Text("Division entre personas (opcional)", size=12, color=AppTheme.TEXT_SECONDARY),
+                ft.Row(list(self._split_fields.values()), spacing=12, wrap=True),
+            ]
+
         if is_edit:
             self._amount.value = str(transaction.amount)
             self._description.value = transaction.description
@@ -141,9 +172,10 @@ class TransactionDialog(ft.AlertDialog):
                         vertical_alignment=ft.CrossAxisAlignment.END,
                     ),
                     self._ownership_info,
+                    self._split_section,
                 ],
                 width=600,
-                height=360,
+                height=360 if not self._split_section.visible else 420,
                 spacing=12,
             ),
             actions=[
@@ -212,13 +244,24 @@ class TransactionDialog(ft.AlertDialog):
                     split_ratio=split_ratio,
                 )
                 transaction_service.update(self._transaction.id, update_data)
+                tx_id = self._transaction.id
             else:
-                transaction_service.create(data)
+                tx = transaction_service.create(data)
+                tx_id = tx.id
+
+            if self._split_fields:
+                splits = [
+                    SplitEntry(participant_id=pid, percentage=Decimal(field.value))
+                    for pid, field in self._split_fields.items()
+                    if field.value and field.value.strip()
+                ]
+                transaction_service.set_splits(tx_id, splits)
+
             self._close()
             if self._on_saved:
                 self._on_saved()
         except Exception as ex:
-            show_snackbar(self._page, 
+            show_snackbar(self._page,
                 ft.SnackBar(
                     content=ft.Text(f"Error: {ex}"),
                     bgcolor=AppTheme.ERROR,
@@ -265,15 +308,42 @@ class CategoryDialog(ft.AlertDialog):
             self._icon.value = category.icon
             self._color.value = category.color
 
+        content_controls = [
+            self._name,
+            ft.Row([self._icon, self._color], spacing=16),
+        ]
+
+        self._participants = participant_service.list_active()
+        self._split_fields: dict[int, ft.TextField] = {}
+        if is_edit and len(self._participants) >= 2:
+            existing_splits = {
+                s.participant_id: s.percentage for s in category_service.get_default_split(category.id)
+            }
+            for participant in self._participants:
+                field = ft.TextField(
+                    label=participant.name,
+                    value=str(existing_splits.get(participant.id, "")),
+                    suffix_text="%",
+                    width=110,
+                    border_color=AppTheme.BORDER_COLOR,
+                )
+                self._split_fields[participant.id] = field
+            content_controls.append(
+                ft.Column(
+                    [
+                        ft.Text("División por defecto (opcional)", size=12, color=AppTheme.TEXT_SECONDARY),
+                        ft.Row(list(self._split_fields.values()), spacing=12, wrap=True),
+                    ],
+                    spacing=8,
+                )
+            )
+
         super().__init__(
             title=ft.Text("Editar Categoría" if is_edit else "Nueva Categoría"),
             content=ft.Column(
-                [
-                    self._name,
-                    ft.Row([self._icon, self._color], spacing=16),
-                ],
-                width=400,
-                height=160,
+                content_controls,
+                width=420,
+                height=160 if not self._split_fields else 240,
                 spacing=16,
             ),
             actions=[
@@ -286,7 +356,7 @@ class CategoryDialog(ft.AlertDialog):
     def _save(self):
         try:
             if not self._name.value:
-                show_snackbar(self._page, 
+                show_snackbar(self._page,
                     ft.SnackBar(content=ft.Text("El nombre es requerido"), bgcolor=AppTheme.WARNING)
                 )
                 return
@@ -297,13 +367,20 @@ class CategoryDialog(ft.AlertDialog):
             )
             if self._category:
                 category_service.update(self._category.id, data)
+                if self._split_fields:
+                    splits = [
+                        SplitEntry(participant_id=pid, percentage=Decimal(field.value))
+                        for pid, field in self._split_fields.items()
+                        if field.value and field.value.strip()
+                    ]
+                    category_service.set_default_split(self._category.id, splits)
             else:
                 category_service.create(data)
             self._close()
             if self._on_saved:
                 self._on_saved()
         except Exception as ex:
-            show_snackbar(self._page, 
+            show_snackbar(self._page,
                 ft.SnackBar(content=ft.Text(f"Error: {ex}"), bgcolor=AppTheme.ERROR)
             )
 

@@ -4,8 +4,8 @@ from typing import Optional
 from sqlalchemy import select, func, and_
 
 from core.database import get_session
-from core.models import Category, Transaction
-from core.schemas import CategoryCreate, CategoryUpdate
+from core.models import Category, CategorySplit, Transaction
+from core.schemas import CategoryCreate, CategoryUpdate, SplitEntry
 from core.config import DEFAULT_CATEGORIES
 
 
@@ -85,6 +85,30 @@ class CategoryService:
                     ),
                 })
             return report
+
+    def get_default_split(self, category_id: int) -> list[CategorySplit]:
+        with get_session() as session:
+            query = select(CategorySplit).where(CategorySplit.category_id == category_id)
+            return list(session.execute(query).scalars().all())
+
+    def set_default_split(self, category_id: int, splits: list[SplitEntry]) -> None:
+        total = sum(s.percentage for s in splits)
+        if splits and abs(total - 100) > Decimal("0.5"):
+            raise ValueError(f"Los porcentajes deben sumar 100 (suman {total})")
+
+        with get_session() as session:
+            session.execute(
+                CategorySplit.__table__.delete().where(CategorySplit.category_id == category_id)
+            )
+            for entry in splits:
+                session.add(
+                    CategorySplit(
+                        category_id=category_id,
+                        participant_id=entry.participant_id,
+                        percentage=entry.percentage,
+                    )
+                )
+            session.commit()
 
 
 category_service = CategoryService()
