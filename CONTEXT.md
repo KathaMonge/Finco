@@ -22,6 +22,7 @@ Python 3.12+ | Flet 0.86.1 | PaddleOCR PP-OCRv6 | SQLite + SQLAlchemy 2.0
 10. **Empty states siempre**: Toda vista sin datos muestra `EmptyState` con guía de acción.
 11. **PDF support**: Los PDFs bancarios se convierten a imágenes con `pdf2image`.
 12. **Layout analysis**: El texto OCR se ordena por columnas, no top-to-bottom naive.
+13. **Repo público, datos reales en el pipeline**: Este proyecto procesa estados de cuenta y vouchers reales vía OCR. Ningún script de debug (`debug_*.py`) debe escribir su output (imágenes, JSON de resultados) al repo root — usa carpetas ignoradas (`.local/`, `tmp/`). Fixtures de test deben ser sintéticas, nunca capturas de un estado de cuenta real. Ver `CLAUDE.md` sección "Datos sensibles".
 
 ## Stack Detallado
 
