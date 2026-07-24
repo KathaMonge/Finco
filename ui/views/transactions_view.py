@@ -3,9 +3,9 @@ from datetime import date
 import flet as ft
 
 from services.transaction_service import transaction_service
-from ui.components.empty_state import EmptyState
 from ui.components.data_table import TransactionTable
 from ui.components.dialogs import TransactionDialog
+from ui.components.empty_state import EmptyState
 from ui.components.snack_undo import show_snackbar, show_undo_snackbar
 from ui.theme import AppTheme
 
@@ -46,6 +46,11 @@ def transactions_view(page: ft.Page) -> ft.Control:
                                 "Exportar CSV",
                                 icon=ft.Icons.DOWNLOAD,
                                 on_click=lambda _: _export_csv(page),
+                            ),
+                            ft.OutlinedButton(
+                                "Exportar Excel",
+                                icon=ft.Icons.TABLE_CHART,
+                                on_click=lambda _: _export_excel(page),
                             ),
                             ft.FilledButton(
                                 "Nueva",
@@ -123,14 +128,32 @@ def _refresh(page: ft.Page):
 
 def _export_csv(page: ft.Page):
     from pathlib import Path
+
     from services.backup_service import backup_service
     downloads = Path.home() / "Downloads"
     if not downloads.exists():
         downloads = Path.home()
     out_path = backup_service.export_csv(downloads)
-    show_snackbar(page, 
+    show_snackbar(page,
         ft.SnackBar(
             content=ft.Text(f"Transacciones exportadas a: {out_path.name}"),
+            action="OK",
+        )
+    )
+
+
+def _export_excel(page: ft.Page):
+    from pathlib import Path
+
+    from services.backup_service import backup_service
+    downloads = Path.home() / "Downloads"
+    if not downloads.exists():
+        downloads = Path.home()
+    today = date.today()
+    out_path = backup_service.export_excel(downloads, today.year, today.month)
+    show_snackbar(page,
+        ft.SnackBar(
+            content=ft.Text(f"Reporte Excel exportado a: {out_path.name}"),
             action="OK",
         )
     )

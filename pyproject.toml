@@ -16,6 +16,7 @@ dependencies = [
     "pdf2image>=1.17.0",
     "sqlalchemy>=2.0",
     "pydantic>=2.0",
+    "openpyxl>=3.1.0",
 ]
 
 [project.optional-dependencies]
